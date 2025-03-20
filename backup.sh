@@ -17,7 +17,7 @@ pg_dump_database() {
 
 upload_to_bucket() {
     echo "📤 Uploading backup to Cloudflare R2..."
-    s3 cp - "s3://$S3_BUCKET_NAME/$(date +%Y/%m/%d/backup-%H-%M-%S.sql.gz)" && echo "✅ Upload successful!"
+    s3 cp - "s3://$S3_BUCKET_NAME/$(date +%Y/%m/%d/backup-%H-%M-%S.sql.gz)" --no-sign-request --expected-size 5242880 && echo "✅ Upload successful!"
 }
 
 main() {
