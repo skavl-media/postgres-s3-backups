@@ -3,12 +3,13 @@
 set -o errexit -o nounset -o pipefail
 
 export AWS_PAGER=""
+export AWS_REGION="auto"  # Cloudflare R2 prefers auto, but you can set "eu" explicitly
 
-# Cloudflare R2 Configuration
-export AWS_ENDPOINT_URL="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+# Cloudflare R2 EU Region Endpoint
+export AWS_ENDPOINT_URL="https://$R2_ACCOUNT_ID.eu.r2.cloudflarestorage.com"
 
 s3() {
-    aws s3 --endpoint-url "$AWS_ENDPOINT_URL" --region auto "$@"
+    aws s3 --endpoint-url "$AWS_ENDPOINT_URL" --region "$AWS_REGION" "$@"
 }
 
 pg_dump_database() {
@@ -16,13 +17,17 @@ pg_dump_database() {
 }
 
 upload_to_bucket() {
-    echo "📤 Uploading backup to Cloudflare R2..."
-    s3 cp - "s3://$S3_BUCKET_NAME/$(date +%Y/%m/%d/backup-%H-%M-%S.sql.gz)" --no-sign-request --expected-size 5242880 && echo "✅ Upload successful!"
+    TIMESTAMP=$(date +%Y/%m/%d/backup-$(date +%H-%M-%S).sql.gz)
+    echo "📤 Uploading backup to Cloudflare R2 as $TIMESTAMP..."
+    
+    pg_dump_database | gzip | s3 cp - "s3://$S3_BUCKET_NAME/$TIMESTAMP" \
+        --checksum-algorithm CRC32 \
+        && echo "✅ Upload successful!" || { echo "❌ Upload failed!"; exit 1; }
 }
 
 main() {
     echo "📦 Taking backup and uploading it to Cloudflare R2..."
-    pg_dump_database | gzip | upload_to_bucket || { echo "❌ Backup upload failed!"; exit 1; }
+    upload_to_bucket
     echo "✅ Backup completed successfully!"
 }
 
